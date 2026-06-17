@@ -1,0 +1,108 @@
+# Local / self-host stack for agent-mail.
+#
+# This brings up the database, the backend API, the frontend and the MCP server.
+# It does NOT run a mail server (Postfix) — see docs/getting-started.md for how
+# incoming mail is delivered into the Maildir that the backend polls. For a quick
+# local trial you can drop raw .eml files into ./maildir/new and they'll be ingested.
+#
+# Copy backend/.env.example -> backend/.env and frontend/.env.example -> frontend/.env
+# (or rely on the defaults below) before running `docker compose up`.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: agent-mail-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentmail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentmail}
+      POSTGRES_DB: ${POSTGRES_DB:-agent_mail}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentmail}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: agent-mail-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agentmail}:${POSTGRES_PASSWORD:-agentmail}@db:5432/${POSTGRES_DB:-agent_mail}
+      HOST: 0.0.0.0
+      PORT: 8080
+      MAILDIR_PATH: /maildir/new
+      EMAIL_DOMAIN: ${EMAIL_DOMAIN:-example.com}
+      MAIL_HOST: ${MAIL_HOST:-mail.example.com}
+      MAIL_SERVER_IP: ${MAIL_SERVER_IP:-203.0.113.10}
+      POLL_INTERVAL: ${POLL_INTERVAL:-10}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-*}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
+      EMAIL_RETENTION_DAYS: ${EMAIL_RETENTION_DAYS:-0}
+    volumes:
+      # Postfix (on the host) delivers new mail here; the worker reads it read-only.
+      # For a quick local trial, drop .eml files into ./maildir/new yourself.
+      - ./maildir/new:/maildir/new:ro
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+        VITE_EMAIL_DOMAIN: ${EMAIL_DOMAIN:-example.com}
+        VITE_MAIL_HOST: ${MAIL_HOST:-}
+    container_name: agent-mail-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+
+  mcp:
+    build: ./mcp
+    container_name: agent-mail-mcp
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      AGENT_MAIL_API_URL: http://backend:8080
+      AGENT_MAIL_EMAIL_DOMAIN: ${EMAIL_DOMAIN:-example.com}
+      # Set if the backend has ADMIN_API_TOKEN enabled.
+      AGENT_MAIL_ADMIN_TOKEN: ${ADMIN_API_TOKEN:-}
+    # MCP servers speak stdio by default; this service is here so it builds in CI
+    # and can be run on demand. See docs/mcp.md for how to wire it into a client.
+    profiles: ["mcp"]
+
+  # Optional containerized mail server. Enable with:  docker compose --profile mailserver up
+  # It accepts SMTP on port 25 for ${EMAIL_DOMAIN} (catch-all) and delivers into the
+  # SAME ./maildir the backend polls. Receiving REAL mail still requires a public IP,
+  # an open port 25, and correct DNS (MX → this host, plus PTR/SPF/DKIM). See
+  # docs/getting-started.md.
+  mailserver:
+    image: boky/postfix:latest
+    container_name: agent-mail-postfix
+    restart: unless-stopped
+    environment:
+      # Accept and store mail for the base domain as a catch-all.
+      ALLOWED_SENDER_DOMAINS: ${EMAIL_DOMAIN:-example.com}
+      HOSTNAME: ${MAIL_HOST:-mail.example.com}
+      # Deliver locally to a Maildir instead of relaying onward.
+      POSTFIX_mydestination: ${EMAIL_DOMAIN:-example.com}
+      POSTFIX_home_mailbox: Maildir/
+    volumes:
+      # Postfix writes new mail here; the backend reads the same directory.
+      - ./maildir:/var/mail/Maildir
+    ports:
+      - "25:25"
+    profiles: ["mailserver"]
+
+volumes:
+  db_data:

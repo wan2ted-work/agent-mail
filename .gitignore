@@ -1,0 +1,30 @@
+# Secrets / env (each component also has its own ignore; this is the safety net)
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Local Maildir contents (keep the directory, not the mail)
+maildir/new/*
+!maildir/new/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.log

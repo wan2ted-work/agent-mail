@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (build + import)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Byte-compile
+        working-directory: backend
+        run: python -m compileall app main.py
+      - name: Import app (smoke)
+        working-directory: backend
+        run: python -c "import app.config, app.security, app.workers, app.services.email_parser, app.services.instance_service; print('backend imports OK')"
+
+  frontend:
+    name: Frontend (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_EMAIL_DOMAIN: example.com
+        run: npm run build
+
+  mcp:
+    name: MCP (build + import)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install MCP package
+        working-directory: mcp
+        run: pip install .
+      - name: Import + list tools
+        working-directory: mcp
+        run: |
+          python -c "
+          import asyncio
+          from agent_mail_mcp.server import mcp
+          tools = asyncio.run(mcp.list_tools())
+          print('MCP tools:', [t.name for t in tools])
+          assert any(t.name == 'create_mailbox' for t in tools)
+          "
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure no tracked .env files
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::A .env file is tracked. Only .env.example should be committed."
+            exit 1
+          fi
+          echo "No tracked .env files."
+      - name: Scan for obvious secrets / private IPs
+        run: |
+          # Fail if a DB URL with embedded credentials is committed, EXCEPT obvious
+          # placeholders (user:password@localhost / @db). Ignore examples & docs.
+          hits=$(git grep -nE 'postg(res(ql)?)?(\+asyncpg)?://[^:@/]+:[^@/]+@' \
+                   -- ':!*.example' ':!docs/*' ':!docker-compose.yml' \
+                 | grep -viE '://(user|username):(password|changeme|change-me)@' \
+                 | grep -viE '@(localhost|db|127\.0\.0\.1|postgres)[:/]' || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::Possible real credentials in a connection string found in tracked files."
+            exit 1
+          fi
+          echo "No embedded credentials found."
