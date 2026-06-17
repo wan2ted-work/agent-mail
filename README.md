@@ -36,11 +36,18 @@ notifications during automated workflows).
 
 <div align="center">
 
-<!-- Inbox view: search, filter, and read mail for an instance. -->
-<img src="docs/screenshots/inbox.png" alt="Agent Mail inbox" width="800"/>
+**Inbox** — every address on a key flows into one searchable space (here: Reddit OTPs,
+verification, and login links an agent triggered).
 
-<!-- Instance dashboard: keys, custom domains, secret. -->
-<img src="docs/screenshots/instance.png" alt="Agent Mail instance dashboard" width="800"/>
+<img src="docs/screenshots/inbox.png" alt="Agent Mail inbox — list of received emails" width="820"/>
+
+**Read a message** — HTML or plain-text view, copy content, full headers.
+
+<img src="docs/screenshots/email.png" alt="Agent Mail email detail view" width="700"/>
+
+**Instance dashboard** — manage keys, attach MX-verified custom domains, grab the API secret.
+
+<img src="docs/screenshots/instance.png" alt="Agent Mail instance dashboard" width="820"/>
 
 </div>
 
