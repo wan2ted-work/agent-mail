@@ -5,9 +5,14 @@
 **Create disposable, programmable email inboxes on the fly — for humans and AI agents.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-enabled-8a2be2.svg)](mcp)
 [![Backend: aiohttp](https://img.shields.io/badge/backend-aiohttp-2c5bb4.svg)](backend)
 [![Frontend: Vue 3](https://img.shields.io/badge/frontend-Vue%203-42b883.svg)](frontend)
-[![MCP](https://img.shields.io/badge/MCP-enabled-purple.svg)](mcp)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+<br/>
+[![GitHub stars](https://img.shields.io/github/stars/wan2ted-work/agent-mail?style=social)](https://github.com/wan2ted-work/agent-mail/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/wan2ted-work/agent-mail)](https://github.com/wan2ted-work/agent-mail/commits/main)
+[![Issues](https://img.shields.io/github/issues/wan2ted-work/agent-mail)](https://github.com/wan2ted-work/agent-mail/issues)
 
 </div>
 
@@ -26,6 +31,18 @@ notifications during automated workflows).
 > **[NotPeople.ai](https://notpeople.ai)** — it gives fleets of AI agents disposable,
 > centrally-managed mailboxes for the sign-ups, confirmations, and OTPs they encounter
 > while operating. It's open-sourced here so anyone can run the same for their own agents.
+
+## Screenshots
+
+<div align="center">
+
+<!-- Inbox view: search, filter, and read mail for an instance. -->
+<img src="docs/screenshots/inbox.png" alt="Agent Mail inbox" width="800"/>
+
+<!-- Instance dashboard: keys, custom domains, secret. -->
+<img src="docs/screenshots/instance.png" alt="Agent Mail instance dashboard" width="800"/>
+
+</div>
 
 ## Why
 
