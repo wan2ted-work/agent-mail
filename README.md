@@ -22,6 +22,11 @@ It ships with a **web UI** for humans and an **MCP server** so AI agents can pro
 own inboxes and read mail programmatically (e.g. to receive sign-up confirmations, OTPs, or
 notifications during automated workflows).
 
+> **Used in production.** Agent Mail is the email infrastructure behind
+> **[NotPeople.ai](https://notpeople.ai)** — it gives fleets of AI agents disposable,
+> centrally-managed mailboxes for the sign-ups, confirmations, and OTPs they encounter
+> while operating. It's open-sourced here so anyone can run the same for their own agents.
+
 ## Why
 
 - **On-the-fly addresses** — `report@acme.x.com`, `signup@acme.x.com`, `anything@acme.x.com`
@@ -149,6 +154,18 @@ mailbox with example emails.
 The managed tier exists so people can use Agent Mail **without deploying anything**. Self-hosting
 gives you full control — your DNS, your mail server, your database. See
 [docs/getting-started.md](docs/getting-started.md#two-deployment-models) for the trade-offs.
+
+## About
+
+Agent Mail is built and maintained by the team behind **[NotPeople.ai](https://notpeople.ai)**,
+where it powers email for fleets of AI agents — disposable, centrally-managed inboxes for the
+sign-ups, confirmations, and one-time codes agents run into in the wild. We open-sourced it
+because every team building autonomous agents eventually needs the same thing: a programmable
+inbox an agent can create on the fly and read on its own.
+
+If you're building AI agents, browser automations, or test harnesses that need to receive real
+email, this is for you. Star the repo, try the [MCP server](docs/mcp.md), and tell us what you
+build.
 
 ## Contributing
 
