@@ -15,7 +15,7 @@ def setup_routes(app: web.Application):
     app.router.add_post('/api/instances/{secret}/keys', instances.add_instance_key)
     app.router.add_delete('/api/instances/{secret}/keys/{key}', instances.remove_instance_key)
 
-    # Instance Domain routes (custom domains with DNS TXT verification)
+    # Instance Domain routes (custom domains verified by MX record)
     app.router.add_get('/api/instances/{secret}/domains', instances.get_instance_domains)
     app.router.add_post('/api/instances/{secret}/domains', instances.add_instance_domain)
     app.router.add_post('/api/instances/{secret}/domains/{domain}/verify', instances.verify_instance_domain)

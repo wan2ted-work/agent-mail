@@ -8,14 +8,19 @@ const api = axios.create({
   },
 });
 
+// Normalize errors so callers can just read `err.message` — it carries the
+// backend's `{ error }` text when present, otherwise the transport error.
+api.interceptors.response.use(
+  (response) => response,
+  (err) => {
+    const serverMsg = err.response?.data?.error || err.response?.data?.detail;
+    return Promise.reject(new Error(serverMsg || err.message));
+  }
+);
+
 // Instance API
 export const instanceApi = {
-  // Create new instance (without key) - DEPRECATED: instances are now created automatically on GET
-  // create(data) {
-  //   return api.post('/instances', data);
-  // },
-
-  // Get instance by secret (UUID) - creates automatically if not exists
+  // Get instance by secret (UUID) — creates automatically if it doesn't exist.
   get(secret) {
     return api.get(`/instances/${secret}`);
   },

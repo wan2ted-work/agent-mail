@@ -1,50 +1,40 @@
 /**
- * Decode RFC 2047 encoded email headers
+ * Decode RFC 2047 encoded email headers.
  * Format: =?charset?encoding?encoded-text?=
  * Example: =?UTF-8?B?0JDQu9C10LrRgdCw0L3QtNGAINCV0LLRgdC40L0=?=
  */
 export function decodeEmailHeader(header) {
   if (!header) return '';
 
-  // Check if header is encoded
+  // Non-global regex so .replace below isn't affected by a stateful lastIndex.
   const encodedPattern = /=\?([^?]+)\?([BQ])\?([^?]+)\?=/gi;
-
-  if (!encodedPattern.test(header)) {
-    return header;
-  }
-
-  // Reset regex lastIndex
-  encodedPattern.lastIndex = 0;
 
   return header.replace(encodedPattern, (match, charset, encoding, encodedText) => {
     try {
+      let bytes;
       if (encoding.toUpperCase() === 'B') {
-        // Base64 decoding
-        const decoded = atob(encodedText);
-        // Decode UTF-8
-        return decodeURIComponent(escape(decoded));
-      } else if (encoding.toUpperCase() === 'Q') {
-        // Quoted-printable decoding
-        const decoded = encodedText
-          .replace(/_/g, ' ')
-          .replace(/=([0-9A-F]{2})/g, (_, hex) =>
-            String.fromCharCode(parseInt(hex, 16))
-          );
-        return decodeURIComponent(escape(decoded));
+        // Base64 -> raw bytes
+        const binary = atob(encodedText);
+        bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      } else {
+        // Quoted-printable: "_" is space, "=XX" is a hex byte.
+        const qp = encodedText.replace(/_/g, ' ');
+        const out = [];
+        for (let i = 0; i < qp.length; i += 1) {
+          if (qp[i] === '=' && i + 2 < qp.length) {
+            out.push(parseInt(qp.substr(i + 1, 2), 16));
+            i += 2;
+          } else {
+            out.push(qp.charCodeAt(i));
+          }
+        }
+        bytes = Uint8Array.from(out);
       }
-    } catch (error) {
-      console.error('Error decoding header:', error);
+      // Charset-correct decoding (handles UTF-8 and most legacy charsets).
+      return new TextDecoder(charset || 'utf-8').decode(bytes);
+    } catch (err) {
+      console.error('Error decoding header:', err);
       return match;
     }
-
-    return match;
   });
-}
-
-/**
- * Decode email name/subject
- */
-export function decodeEmailName(name) {
-  if (!name) return '';
-  return decodeEmailHeader(name);
 }

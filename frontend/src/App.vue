@@ -1,12 +1,18 @@
 <template>
   <div class="min-h-screen bg-gray-100">
     <!-- Auth Screen -->
-    <div v-if="!store.isAuthenticated" class="py-12">
+    <div
+      v-if="!store.isAuthenticated"
+      class="py-12"
+    >
       <AuthForm />
     </div>
 
     <!-- Main Dashboard -->
-    <div v-else class="container mx-auto px-4 py-8">
+    <div
+      v-else
+      class="container mx-auto px-4 py-8"
+    >
       <!-- Instance Info -->
       <InstanceInfo />
 

@@ -18,14 +18,14 @@ Or via the root `docker compose up` (recommended — brings up PostgreSQL too).
 
 ```
 app/
-  api/        HTTP handlers + routes + pydantic schemas
+  api/        HTTP handlers + routes + pydantic schemas + helpers (api_handler)
   models/     SQLAlchemy models: Instance, InstanceKey, InstanceDomain, Email
   services/   email_parser (Maildir → DB), instance_service (CRUD + MX verify)
   workers.py  EmailMonitorWorker — polls MAILDIR_PATH every POLL_INTERVAL seconds
+  security.py admin-token + rate-limit middleware
   config.py   env-driven settings
   database.py async engine + session
 main.py       app entrypoint (CORS, startup/cleanup, worker task)
-scripts/      one-off maintenance scripts
 ```
 
 ## Docs

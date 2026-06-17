@@ -105,10 +105,10 @@ class EmailParserService:
                     if received_at.tzinfo is not None:
                         received_at = received_at.astimezone(timezone.utc).replace(tzinfo=None)
                 else:
-                    received_at = datetime.utcnow()
-            except Exception as e:
-                logger.error(f"Error parsing date: {e}")
-                received_at = datetime.utcnow()
+                    received_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            except Exception:
+                logger.exception("Error parsing Date header")
+                received_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
             # Extract body
             body_text = None
@@ -162,100 +162,79 @@ class EmailParserService:
 
     @staticmethod
     async def save_email(session: AsyncSession, email_data: Dict[str, Any]) -> Optional[Email]:
-        """Save parsed email to database"""
-        try:
-            # Check if email already exists
-            stmt = select(Email).where(Email.message_id == email_data['message_id'])
-            result = await session.execute(stmt)
-            existing_email = result.scalar_one_or_none()
+        """Save a parsed email to the database.
 
-            if existing_email:
-                logger.info(f"Email {email_data['message_id']} already exists, skipping")
-                return existing_email
+        Returns the Email (existing or newly created). Raises on a database error so
+        the caller can decide whether to retry — we never silently drop mail.
+        """
+        # Check if email already exists (idempotent via unique message_id)
+        stmt = select(Email).where(Email.message_id == email_data['message_id'])
+        result = await session.execute(stmt)
+        existing_email = result.scalar_one_or_none()
 
-            # Find the owning instance:
-            #  - bare domain  -> a VERIFIED InstanceDomain for that domain
-            #  - subdomain    -> an InstanceKey matching the extracted key
-            from app.models.instance import Instance
-            from app.models.instance_key import InstanceKey
-            from app.models.instance_domain import InstanceDomain
+        if existing_email:
+            logger.info(f"Email {email_data['message_id']} already exists, skipping")
+            return existing_email
 
-            if email_data.get('is_bare'):
-                stmt = (
-                    select(Instance)
-                    .join(InstanceDomain, Instance.id == InstanceDomain.instance_id)
-                    .where(
-                        InstanceDomain.domain == email_data['to_domain'],
-                        InstanceDomain.is_verified.is_(True),
-                    )
+        # Find the owning instance:
+        #  - bare domain  -> a VERIFIED InstanceDomain for that domain
+        #  - subdomain    -> an InstanceKey matching the extracted key
+        from app.models.instance import Instance
+        from app.models.instance_key import InstanceKey
+        from app.models.instance_domain import InstanceDomain
+
+        if email_data.get('is_bare'):
+            stmt = (
+                select(Instance)
+                .join(InstanceDomain, Instance.id == InstanceDomain.instance_id)
+                .where(
+                    InstanceDomain.domain == email_data['to_domain'],
+                    InstanceDomain.is_verified.is_(True),
                 )
-            else:
-                # Subdomain key. Scope it to its parent domain (docs/security.md#key-scoping):
-                # the match is valid only when the parent registrable domain is the shared
-                # EMAIL_DOMAIN, or a VERIFIED custom domain owned by the SAME instance that
-                # holds the key. This stops a key registered under one domain from
-                # capturing mail that arrived on a different domain.
-                parent_domain = email_data['to_domain']
-                stmt = (
-                    select(Instance)
-                    .join(InstanceKey, Instance.id == InstanceKey.instance_id)
-                    .where(InstanceKey.key == email_data['extracted_key'])
-                )
-                if parent_domain != settings.EMAIL_DOMAIN:
-                    # Require a verified InstanceDomain on the same instance.
-                    stmt = stmt.join(
-                        InstanceDomain, Instance.id == InstanceDomain.instance_id
-                    ).where(
-                        InstanceDomain.domain == parent_domain,
-                        InstanceDomain.is_verified.is_(True),
-                    )
-            result = await session.execute(stmt)
-            instance = result.scalar_one_or_none()
-
-            # Create new email
-            email = Email(
-                instance_id=instance.id if instance else None,
-                extracted_key=email_data['extracted_key'],
-                message_id=email_data['message_id'],
-                from_email=email_data['from_email'],
-                from_name=email_data['from_name'],
-                to_email=email_data['to_email'],
-                subject=email_data['subject'],
-                body_text=email_data['body_text'],
-                body_html=email_data['body_html'],
-                raw_email=email_data['raw_email'],
-                filename=email_data['filename'],
-                received_at=email_data['received_at'],
             )
+        else:
+            # Subdomain key. Scope it to its parent domain (docs/security.md#key-scoping):
+            # the match is valid only when the parent registrable domain is the shared
+            # EMAIL_DOMAIN, or a VERIFIED custom domain owned by the SAME instance that
+            # holds the key. This stops a key registered under one domain from
+            # capturing mail that arrived on a different domain.
+            parent_domain = email_data['to_domain']
+            stmt = (
+                select(Instance)
+                .join(InstanceKey, Instance.id == InstanceKey.instance_id)
+                .where(InstanceKey.key == email_data['extracted_key'])
+            )
+            if parent_domain != settings.EMAIL_DOMAIN:
+                # Require a verified InstanceDomain on the same instance.
+                stmt = stmt.join(
+                    InstanceDomain, Instance.id == InstanceDomain.instance_id
+                ).where(
+                    InstanceDomain.domain == parent_domain,
+                    InstanceDomain.is_verified.is_(True),
+                )
+        result = await session.execute(stmt)
+        instance = result.scalar_one_or_none()
 
-            session.add(email)
-            await session.flush()
-            logger.info(f"Saved email {email.id} with key {email.extracted_key}")
-            return email
+        # Create new email
+        email = Email(
+            instance_id=instance.id if instance else None,
+            extracted_key=email_data['extracted_key'],
+            message_id=email_data['message_id'],
+            from_email=email_data['from_email'],
+            from_name=email_data['from_name'],
+            to_email=email_data['to_email'],
+            subject=email_data['subject'],
+            body_text=email_data['body_text'],
+            body_html=email_data['body_html'],
+            raw_email=email_data['raw_email'],
+            filename=email_data['filename'],
+            received_at=email_data['received_at'],
+        )
 
-        except Exception as e:
-            logger.error(f"Error saving email to database: {e}")
-            return None
-
-    @staticmethod
-    async def process_maildir(session: AsyncSession, maildir_path: str = None) -> int:
-        """Process all emails in Maildir"""
-        if maildir_path is None:
-            maildir_path = settings.MAILDIR_PATH
-
-        if not os.path.exists(maildir_path):
-            logger.warning(f"Maildir path {maildir_path} does not exist")
-            return 0
-
-        processed_count = 0
-        for filename in os.listdir(maildir_path):
-            file_path = os.path.join(maildir_path, filename)
-            if os.path.isfile(file_path):
-                email_data = EmailParserService.parse_email_file(file_path)
-                if email_data:
-                    email = await EmailParserService.save_email(session, email_data)
-                    if email:
-                        processed_count += 1
+        session.add(email)
+        await session.flush()
+        logger.info(f"Saved email {email.id} with key {email.extracted_key}")
+        return email
 
         logger.info(f"Processed {processed_count} emails from {maildir_path}")
         return processed_count

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
@@ -15,8 +15,7 @@ class InstanceKeyResponse(BaseModel):
     key: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Instance Domain schemas
@@ -32,8 +31,7 @@ class InstanceDomainResponse(BaseModel):
     created_at: datetime
     verified_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Instance schemas
@@ -56,12 +54,7 @@ class InstanceResponse(BaseModel):
     keys: List['InstanceKeyResponse'] = []
     domains: List['InstanceDomainResponse'] = []
 
-    class Config:
-        from_attributes = True
-
-
-class InstanceWithEmailCount(InstanceResponse):
-    email_count: int
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Email schemas
@@ -80,8 +73,7 @@ class EmailResponse(BaseModel):
     received_at: datetime
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EmailListResponse(BaseModel):
@@ -94,23 +86,9 @@ class EmailListResponse(BaseModel):
     received_at: datetime
     has_instance: bool
 
-    class Config:
-        from_attributes = True
-
-
-# Pagination
-class PaginatedResponse(BaseModel):
-    total: int
-    skip: int
-    limit: int
-    items: List[Any]
+    model_config = ConfigDict(from_attributes=True)
 
 
 # General responses
 class MessageResponse(BaseModel):
     message: str
-
-
-class ErrorResponse(BaseModel):
-    error: str
-    detail: Optional[str] = None

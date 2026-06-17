@@ -13,7 +13,10 @@
               <span class="font-medium text-gray-900">
                 {{ decodeHeader(email.from_name) || email.from_email }}
               </span>
-              <span v-if="email.from_name" class="text-gray-500">
+              <span
+                v-if="email.from_name"
+                class="text-gray-500"
+              >
                 &lt;{{ email.from_email }}&gt;
               </span>
             </div>
@@ -28,11 +31,21 @@
           </div>
         </div>
         <button
-          @click="handleClose"
           class="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0 ml-4"
+          @click="handleClose"
         >
-          <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            class="w-6 h-6 text-gray-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -41,33 +54,43 @@
       <div class="px-6 py-3 border-b border-gray-200 bg-gray-50">
         <div class="flex gap-2">
           <button
-            @click="viewMode = 'html'"
             :class="[
               'px-4 py-2 rounded-lg font-medium transition-colors text-sm',
               viewMode === 'html'
                 ? 'bg-blue-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             ]"
+            @click="viewMode = 'html'"
           >
             HTML View
           </button>
           <button
-            @click="viewMode = 'text'"
             :class="[
               'px-4 py-2 rounded-lg font-medium transition-colors text-sm',
               viewMode === 'text'
                 ? 'bg-blue-500 text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             ]"
+            @click="viewMode = 'text'"
           >
             Text View
           </button>
           <button
-            @click="copyEmailContent"
             class="ml-auto px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-colors text-sm flex items-center gap-2"
+            @click="copyEmailContent"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
             </svg>
             Copy Content
           </button>
@@ -77,17 +100,35 @@
       <!-- Content -->
       <div class="flex-1 overflow-y-auto p-6">
         <!-- HTML View -->
-        <div v-if="viewMode === 'html'" class="prose max-w-none">
-          <div v-if="email.body_html" v-html="sanitizedHtml"></div>
-          <div v-else class="text-gray-500 italic">
+        <div
+          v-if="viewMode === 'html'"
+          class="prose max-w-none"
+        >
+          <!-- sanitizedHtml is run through DOMPurify (see <script>); see eslint override -->
+          <div
+            v-if="email.body_html"
+            v-html="sanitizedHtml"
+          />
+          <div
+            v-else
+            class="text-gray-500 italic"
+          >
             No HTML content available
           </div>
         </div>
 
         <!-- Text View -->
-        <div v-else class="font-mono text-sm whitespace-pre-wrap text-gray-900">
-          <div v-if="email.body_text">{{ email.body_text }}</div>
-          <div v-else class="text-gray-500 italic font-sans">
+        <div
+          v-else
+          class="font-mono text-sm whitespace-pre-wrap text-gray-900"
+        >
+          <div v-if="email.body_text">
+            {{ email.body_text }}
+          </div>
+          <div
+            v-else
+            class="text-gray-500 italic font-sans"
+          >
             No text content available
           </div>
         </div>
@@ -121,7 +162,9 @@
 <script setup>
 import { ref, computed } from 'vue';
 import DOMPurify from 'dompurify';
-import { decodeEmailHeader } from '../utils/emailHeaders';
+import { decodeEmailHeader as decodeHeader } from '../utils/emailHeaders';
+import { copyText } from '../utils/clipboard';
+import { formatDateTime as formatDate } from '../utils/date';
 
 const props = defineProps({
   email: {
@@ -134,10 +177,6 @@ const emit = defineEmits(['close']);
 
 const viewMode = ref('html');
 const showCopyNotification = ref(false);
-
-function decodeHeader(text) {
-  return decodeEmailHeader(text);
-}
 
 // Sanitize attacker-controlled email HTML with DOMPurify before rendering.
 // Email bodies are untrusted input; naive script-stripping is not enough (onerror=,
@@ -161,31 +200,17 @@ function handleClose() {
   emit('close');
 }
 
-function copyEmailContent() {
+async function copyEmailContent() {
   const content = viewMode.value === 'html'
     ? props.email.body_html || props.email.body_text
     : props.email.body_text || props.email.body_html;
 
-  if (content) {
-    navigator.clipboard.writeText(content).then(() => {
-      showCopyNotification.value = true;
-      setTimeout(() => {
-        showCopyNotification.value = false;
-      }, 2000);
-    });
+  if (content && (await copyText(content))) {
+    showCopyNotification.value = true;
+    setTimeout(() => {
+      showCopyNotification.value = false;
+    }, 2000);
   }
-}
-
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
 }
 </script>
 

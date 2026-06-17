@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import delete
@@ -30,8 +30,11 @@ class EmailMonitorWorker:
         self.running = True
         logger.info("Email monitor worker started")
 
-        # Initial scan - load already processed files
-        await self._initial_scan()
+        # NOTE: we deliberately do NOT pre-mark existing Maildir files as processed.
+        # On startup we (re)scan everything; save_email is idempotent via the unique
+        # message_id, so already-ingested mail is skipped while genuinely new mail that
+        # arrived while we were down (or after a DB restore) is still picked up.
+        # `processed_files` is only an in-process fast-path, not a durability mechanism.
 
         # Start monitoring loop
         while self.running:
@@ -52,7 +55,7 @@ class EmailMonitorWorker:
         if now - self._last_retention_sweep < _RETENTION_SWEEP_INTERVAL:
             return
         self._last_retention_sweep = now
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
         try:
             async with db.session() as session:
                 result = await session.execute(
@@ -67,24 +70,6 @@ class EmailMonitorWorker:
         """Stop the email monitoring worker"""
         self.running = False
         logger.info("Email monitor worker stopped")
-
-    async def _initial_scan(self):
-        """Initial scan to mark existing files as processed"""
-        try:
-            maildir_path = Path(settings.MAILDIR_PATH)
-            if not maildir_path.exists():
-                logger.warning(f"Maildir path {maildir_path} does not exist yet")
-                return
-
-            # Mark all existing files as already processed
-            for file_path in maildir_path.glob('*'):
-                if file_path.is_file():
-                    self.processed_files.add(file_path.name)
-
-            logger.info(f"Initial scan: found {len(self.processed_files)} existing files")
-
-        except Exception as e:
-            logger.error(f"Error in initial scan: {e}")
 
     async def _check_for_new_emails(self):
         """Check for new email files and process them"""

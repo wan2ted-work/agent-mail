@@ -1,38 +1,70 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { instanceApi, emailApi } from '../services/api';
 
+export const EMPTY_FILTERS = Object.freeze({
+  from_email: '',
+  nickname: '',
+  subject: '',
+  extracted_key: '',
+});
+
 export const useAppStore = defineStore('app', () => {
-  // State
+  // ── State ──────────────────────────────────────────────────────────────────
   const secret = ref(localStorage.getItem('secret') || '');
   const instance = ref(null);
   const emails = ref([]);
   const currentEmail = ref(null);
-  const loading = ref(false);
+
+  // Per-operation loading flags so unrelated UI doesn't share one spinner.
+  const loading = reactive({
+    instance: false,
+    emails: false,
+    detail: false,
+    mutation: false,
+  });
   const error = ref(null);
 
-  // Pagination
-  const emailsPagination = ref({
-    total: 0,
-    skip: 0,
-    limit: 20,
-  });
+  const emailsPagination = reactive({ total: 0, skip: 0, limit: 20 });
+  const filters = reactive({ ...EMPTY_FILTERS });
 
-  // Filters
-  const filters = ref({
-    from_email: '',
-    nickname: '',
-    subject: '',
-    extracted_key: '',
-  });
-
-  // Computed
+  // ── Computed ───────────────────────────────────────────────────────────────
   const isAuthenticated = computed(() => !!secret.value && !!instance.value);
   const hasEmails = computed(() => emails.value.length > 0);
   const instanceKeys = computed(() => instance.value?.keys || []);
   const instanceDomains = computed(() => instance.value?.domains || []);
+  const canPrevPage = computed(() => emailsPagination.skip > 0);
+  const canNextPage = computed(
+    () => emailsPagination.skip + emailsPagination.limit < emailsPagination.total
+  );
+  const rangeStart = computed(() => (emailsPagination.total ? emailsPagination.skip + 1 : 0));
+  const rangeEnd = computed(() =>
+    Math.min(emailsPagination.skip + emailsPagination.limit, emailsPagination.total)
+  );
 
-  // Actions
+  // ── Helpers ──────────────────────────────────────────────────────────────--
+  /**
+   * Run an authenticated request with uniform loading/error handling.
+   * @param key one of the `loading` flags
+   * @param fn  receives the current secret, returns a promise
+   * @param fallback error message if the server didn't supply one
+   */
+  async function withRequest(key, fn, fallback) {
+    if (!secret.value) return;
+    loading[key] = true;
+    error.value = null;
+    try {
+      return await fn(secret.value);
+    } catch (err) {
+      error.value = err.message || fallback;
+      console.error(fallback, err);
+      throw err;
+    } finally {
+      loading[key] = false;
+    }
+  }
+
+  // ── Auth ─────────────────────────────────────────────────────────────────--
   async function setSecret(newSecret) {
     secret.value = newSecret;
     localStorage.setItem('secret', newSecret);
@@ -47,260 +79,119 @@ export const useAppStore = defineStore('app', () => {
     localStorage.removeItem('secret');
   }
 
+  // ── Instance ─────────────────────────────────────────────────────────────--
   async function loadInstance() {
     if (!secret.value) return;
-
-    loading.value = true;
-    error.value = null;
-
     try {
-      const response = await instanceApi.get(secret.value);
-      instance.value = response.data;
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to load instance';
-      console.error('Error loading instance:', err);
+      await withRequest('instance', async (s) => {
+        instance.value = (await instanceApi.get(s)).data;
+      }, 'Failed to load instance');
+    } catch {
+      // An invalid/unreachable secret means we can't authenticate — log out.
       clearSecret();
-    } finally {
-      loading.value = false;
     }
   }
 
-  // DEPRECATED: instances are now created automatically on GET request
-  // async function createInstance(data) {
-  //   loading.value = true;
-  //   error.value = null;
-  //
-  //   try {
-  //     const response = await instanceApi.create(data);
-  //     const newInstance = response.data;
-  //     await setSecret(newInstance.id);
-  //     return newInstance;
-  //   } catch (err) {
-  //     error.value = err.response?.data?.error || 'Failed to create instance';
-  //     console.error('Error creating instance:', err);
-  //     throw err;
-  //   } finally {
-  //     loading.value = false;
-  //   }
-  // }
-
-  async function updateInstance(data) {
-    if (!secret.value) return;
-
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const response = await instanceApi.update(secret.value, data);
-      instance.value = response.data;
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to update instance';
-      console.error('Error updating instance:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+  function updateInstance(data) {
+    return withRequest('mutation', async (s) => {
+      instance.value = (await instanceApi.update(s, data)).data;
+    }, 'Failed to update instance');
   }
 
-  async function loadEmails(resetPagination = false) {
-    if (!secret.value) return;
-
-    if (resetPagination) {
-      emailsPagination.value.skip = 0;
-    }
-
-    loading.value = true;
-    error.value = null;
-
-    try {
+  // ── Emails ───────────────────────────────────────────────────────────────--
+  function loadEmails(resetPagination = false) {
+    if (resetPagination) emailsPagination.skip = 0;
+    return withRequest('emails', async (s) => {
       const params = {
-        skip: emailsPagination.value.skip,
-        limit: emailsPagination.value.limit,
-        ...Object.fromEntries(
-          Object.entries(filters.value).filter(([_, v]) => v !== '')
-        ),
+        skip: emailsPagination.skip,
+        limit: emailsPagination.limit,
+        ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')),
       };
-
-      const response = await emailApi.getList(secret.value, params);
-      emails.value = response.data.items;
-      emailsPagination.value.total = response.data.total;
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to load emails';
-      console.error('Error loading emails:', err);
-    } finally {
-      loading.value = false;
-    }
+      const { data } = await emailApi.getList(s, params);
+      emails.value = data.items;
+      emailsPagination.total = data.total;
+    }, 'Failed to load emails');
   }
 
-  async function loadEmailDetail(emailId) {
-    if (!secret.value) return;
-
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const response = await emailApi.getDetail(secret.value, emailId);
-      currentEmail.value = response.data;
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to load email';
-      console.error('Error loading email detail:', err);
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function setFilters(newFilters) {
-    filters.value = { ...filters.value, ...newFilters };
-  }
-
-  function clearFilters() {
-    filters.value = {
-      from_email: '',
-      nickname: '',
-      subject: '',
-      extracted_key: '',
-    };
-  }
-
-  async function addKey(key) {
-    if (!secret.value) return;
-
-    loading.value = true;
-    error.value = null;
-
-    try {
-      await instanceApi.addKey(secret.value, key);
-      await loadInstance(); // Reload to get updated keys
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to add key';
-      console.error('Error adding key:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function removeKey(key) {
-    if (!secret.value) return;
-
-    loading.value = true;
-    error.value = null;
-
-    try {
-      await instanceApi.removeKey(secret.value, key);
-      await loadInstance(); // Reload to get updated keys
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to remove key';
-      console.error('Error removing key:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function nextPage() {
-    if (emailsPagination.value.skip + emailsPagination.value.limit < emailsPagination.value.total) {
-      emailsPagination.value.skip += emailsPagination.value.limit;
-      loadEmails();
-    }
-  }
-
-  function prevPage() {
-    if (emailsPagination.value.skip > 0) {
-      emailsPagination.value.skip = Math.max(0, emailsPagination.value.skip - emailsPagination.value.limit);
-      loadEmails();
-    }
+  function loadEmailDetail(emailId) {
+    return withRequest('detail', async (s) => {
+      currentEmail.value = (await emailApi.getDetail(s, emailId)).data;
+    }, 'Failed to load email');
   }
 
   function clearCurrentEmail() {
     currentEmail.value = null;
   }
 
-  // Custom domains
-  async function addDomain(domain) {
-    if (!secret.value) return;
-    loading.value = true;
-    error.value = null;
-    try {
-      const response = await instanceApi.addDomain(secret.value, domain);
-      await loadInstance(); // refresh domains list
-      return response.data; // includes dns_record (MX) to display
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to add domain';
-      console.error('Error adding domain:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+  function nextPage() {
+    if (!canNextPage.value) return;
+    emailsPagination.skip += emailsPagination.limit;
+    return loadEmails();
   }
 
-  async function verifyDomain(domain) {
-    if (!secret.value) return;
-    loading.value = true;
-    error.value = null;
-    try {
-      const response = await instanceApi.verifyDomain(secret.value, domain);
-      await loadInstance();
-      return response.data; // is_verified true/false (+ message when pending)
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to verify domain';
-      console.error('Error verifying domain:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+  function prevPage() {
+    if (!canPrevPage.value) return;
+    emailsPagination.skip = Math.max(0, emailsPagination.skip - emailsPagination.limit);
+    return loadEmails();
   }
 
-  async function removeDomain(domain) {
-    if (!secret.value) return;
-    loading.value = true;
-    error.value = null;
-    try {
-      await instanceApi.removeDomain(secret.value, domain);
+  // ── Filters ──────────────────────────────────────────────────────────────--
+  function setFilters(newFilters) {
+    Object.assign(filters, newFilters);
+  }
+
+  function clearFilters() {
+    Object.assign(filters, EMPTY_FILTERS);
+  }
+
+  // ── Keys ─────────────────────────────────────────────────────────────────--
+  function addKey(key) {
+    return withRequest('mutation', async (s) => {
+      await instanceApi.addKey(s, key);
       await loadInstance();
-    } catch (err) {
-      error.value = err.response?.data?.error || 'Failed to remove domain';
-      console.error('Error removing domain:', err);
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Failed to add key');
+  }
+
+  function removeKey(key) {
+    return withRequest('mutation', async (s) => {
+      await instanceApi.removeKey(s, key);
+      await loadInstance();
+    }, 'Failed to remove key');
+  }
+
+  // ── Custom domains ───────────────────────────────────────────────────────--
+  function addDomain(domain) {
+    return withRequest('mutation', async (s) => {
+      const { data } = await instanceApi.addDomain(s, domain);
+      await loadInstance();
+      return data; // includes dns_record (MX) to display
+    }, 'Failed to add domain');
+  }
+
+  function verifyDomain(domain) {
+    return withRequest('mutation', async (s) => {
+      const { data } = await instanceApi.verifyDomain(s, domain);
+      await loadInstance();
+      return data; // is_verified true/false (+ message when pending)
+    }, 'Failed to verify domain');
+  }
+
+  function removeDomain(domain) {
+    return withRequest('mutation', async (s) => {
+      await instanceApi.removeDomain(s, domain);
+      await loadInstance();
+    }, 'Failed to remove domain');
   }
 
   return {
     // State
-    secret,
-    instance,
-    emails,
-    currentEmail,
-    loading,
-    error,
-    emailsPagination,
-    filters,
-
+    secret, instance, emails, currentEmail, loading, error, emailsPagination, filters,
     // Computed
-    isAuthenticated,
-    hasEmails,
-    instanceKeys,
-    instanceDomains,
-
+    isAuthenticated, hasEmails, instanceKeys, instanceDomains,
+    canPrevPage, canNextPage, rangeStart, rangeEnd,
     // Actions
-    setSecret,
-    clearSecret,
-    loadInstance,
-    // createInstance, // DEPRECATED
-    updateInstance,
-    loadEmails,
-    loadEmailDetail,
-    setFilters,
-    clearFilters,
-    addKey,
-    removeKey,
-    addDomain,
-    verifyDomain,
-    removeDomain,
-    nextPage,
-    prevPage,
-    clearCurrentEmail,
+    setSecret, clearSecret, loadInstance, updateInstance,
+    loadEmails, loadEmailDetail, clearCurrentEmail, nextPage, prevPage,
+    setFilters, clearFilters, addKey, removeKey, addDomain, verifyDomain, removeDomain,
   };
 });

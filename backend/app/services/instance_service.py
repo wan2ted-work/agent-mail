@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID, uuid4
 
@@ -339,7 +339,7 @@ class InstanceService:
             return instance_domain  # still unverified; caller checks is_verified
 
         instance_domain.is_verified = True
-        instance_domain.verified_at = datetime.utcnow()
+        instance_domain.verified_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Attach any bare-domain emails that arrived before verification
         assoc = (
