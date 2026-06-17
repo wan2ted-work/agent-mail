@@ -5,10 +5,28 @@ description = "MCP server for Agent Mail — lets AI agents create disposable in
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "wan2ted" }]
+keywords = ["mcp", "email", "agents", "llm", "disposable-email", "otp", "inbox"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Email",
+]
 dependencies = [
     "mcp>=1.2.0",
     "httpx>=0.27.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/wan2ted/agent-mail"
+Documentation = "https://github.com/wan2ted/agent-mail/blob/main/docs/mcp.md"
+Repository = "https://github.com/wan2ted/agent-mail"
+Issues = "https://github.com/wan2ted/agent-mail/issues"
 
 [project.scripts]
 agent-mail-mcp = "agent_mail_mcp.__main__:main"

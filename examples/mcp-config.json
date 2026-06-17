@@ -1,0 +1,12 @@
+{
+  "//": "Add this under your MCP host's mcpServers config (Claude Desktop/Code).",
+  "mcpServers": {
+    "agent-mail": {
+      "command": "agent-mail-mcp",
+      "env": {
+        "AGENT_MAIL_API_URL": "https://email-api.example.com",
+        "AGENT_MAIL_EMAIL_DOMAIN": "example.com"
+      }
+    }
+  }
+}

@@ -10,9 +10,16 @@ HTTP(S). Point it at the managed backend or your own self-hosted one.
 
 ## Setup
 
+Once published to PyPI:
+
 ```bash
-cd mcp
-pip install .
+pipx install agent-mail-mcp     # or: uv tool install agent-mail-mcp
+```
+
+Or from a checkout of this repo:
+
+```bash
+cd mcp && pip install .
 ```
 
 Configure your MCP client (Claude Desktop, Claude Code, or any MCP host):

@@ -120,6 +120,15 @@ Then an agent can call `create_mailbox`, get back `signup@<key>.example.com`, tr
 that mails that address, and `list_emails` / `get_email` to read the result. See
 **[docs/mcp.md](docs/mcp.md)**.
 
+## For AI agents
+
+- **[AGENTS.md](AGENTS.md)** — how an agent provisions a mailbox and reads mail; conventions.
+- **[llms.txt](llms.txt)** — machine-readable index of the project for LLMs/tools.
+- **[examples/](examples/)** — drop-in MCP config, a Python OTP flow, and curl recipes.
+
+Want to try it instantly with sample data? `make demo` brings up the stack and seeds a
+mailbox with example emails.
+
 ## Documentation
 
 - **[Architecture](docs/architecture.md)** — components, data model, routing internals

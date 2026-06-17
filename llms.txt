@@ -1,0 +1,33 @@
+# Agent Mail
+
+> Create disposable, programmable email inboxes on the fly — for humans and AI agents.
+> Send mail to `anything@<key>.<domain>` and it instantly appears in the space tied to
+> that key. An MCP server lets AI agents provision a mailbox and read mail (OTPs,
+> confirmations, magic links) during automated workflows. Self-hostable (MIT) or managed.
+
+Agent Mail does not implement SMTP/IMAP itself: a standard mail server (Postfix)
+receives mail into a Maildir, and the backend polls it, routes by key/verified-domain,
+and serves a REST API consumed by the web UI and the MCP server. An instance is a
+private space identified by a secret UUID (the only credential).
+
+## For AI agents
+
+- [AGENTS.md](AGENTS.md): how an agent provisions a mailbox and reads mail; conventions.
+- [MCP server](docs/mcp.md): tools (create_mailbox, list_emails, get_email,
+  wait_for_email, add/verify custom domains) and agent recipes.
+- [Examples](examples/README.md): runnable MCP config, Python OTP flow, and curl recipes.
+
+## Documentation
+
+- [API reference](docs/api.md): every REST endpoint with request/response shapes.
+- [Architecture](docs/architecture.md): components, data model, recipient routing.
+- [Getting started](docs/getting-started.md): run locally, self-host with DNS + Postfix.
+- [Security](docs/security.md): trust model and hardening checklist.
+
+## Key facts
+
+- Address shape: `anything@<key>.<EMAIL_DOMAIN>` routes by the single subdomain label
+  `<key>`. A bare custom domain routes once its MX is verified.
+- Auth: the instance secret UUID is a bearer credential in the request path; an optional
+  `X-Admin-Token` gates admin/mutating endpoints when configured.
+- `body_html` in stored mail is attacker-controlled; prefer `body_text`.

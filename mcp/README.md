@@ -7,8 +7,17 @@ logic. Point it at any Agent Mail backend over HTTP(S) (managed or self-hosted).
 
 ## Install & run
 
+Once published to PyPI (see [PUBLISHING.md](PUBLISHING.md)):
+
 ```bash
-pip install .                 # from this directory
+pipx install agent-mail-mcp           # or: uv tool install agent-mail-mcp
+AGENT_MAIL_API_URL=https://email-api.example.com agent-mail-mcp
+```
+
+From a checkout of this repo:
+
+```bash
+pip install .                         # from this directory
 AGENT_MAIL_API_URL=https://email-api.example.com agent-mail-mcp
 ```
 
